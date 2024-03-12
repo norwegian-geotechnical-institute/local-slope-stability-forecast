@@ -1,0 +1,8 @@
+.env
+.idea
+*.pkl
+*.csv
+__pycache__
+tmp_models
+tmp_params
+.cache.sqlite

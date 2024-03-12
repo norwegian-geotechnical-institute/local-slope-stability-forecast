@@ -1,0 +1,95 @@
+parameters:
+  - name: publish
+    displayName: Publish app (production environment)
+    type: boolean
+    default: false
+  - name: featureBranchTestPublish
+    displayName: Force publish to test environment on feature branch
+    type: boolean
+    default: false
+
+trigger:
+  branches:
+    include:
+      - '*'
+  tags:
+    include:
+      - '*'
+
+stages:
+  - stage: Build
+    displayName: Build stage
+    jobs:
+      - job: FunctionBuild
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - task: UsePythonVersion@0
+            displayName: "Setting Python version as required by functions"
+            inputs:
+              versionSpec: '3.11'
+              architecture: 'x64'
+          - script:
+              curl -sSL https://install.python-poetry.org | python - --version 1.6.1
+            displayName: 'Install poetry'
+          - script:
+              ~/.local/bin/poetry export -f requirements.txt -o requirements.txt
+            displayName: 'Poetry export'
+          - script:
+              pip install --target="./.python_packages/lib/site-packages" -r requirements.txt --no-deps
+            displayName: 'Install dependencies'
+          - task: ArchiveFiles@2
+            displayName: "Archive files"
+            inputs:
+              rootFolderOrFile: "$(System.DefaultWorkingDirectory)"
+              includeRootFolder: false
+              archiveFile: "$(System.DefaultWorkingDirectory)/build$(Build.BuildId).zip"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: '$(System.DefaultWorkingDirectory)/build$(Build.BuildId).zip'
+              artifactName: 'drop'
+  - ${{ if or(eq(variables['Build.SourceBranchName'], 'trunk'), eq(parameters.featureBranchTestPublish, true), startsWith(variables['Build.SourceBranch'], 'refs/tags/'), eq(parameters.publish, true)) }}:
+      - stage: TestPublish
+        displayName: Publish to test
+        jobs:
+          - job: FunctionPublish
+            pool:
+              vmImage: ubuntu-latest
+            steps:
+              - task: DownloadBuildArtifacts@0
+                inputs:
+                  buildType: 'current'
+                  downloadType: 'single'
+                  artifactName: 'drop'
+                  downloadPath: '$(System.ArtifactsDirectory)'
+              - task: AzureFunctionApp@2
+                inputs:
+                  azureSubscription: test_slopestability-owner-perms
+                  appType: functionAppLinux # default is functionApp
+                  appName: slopestability-func-test
+                  package: $(System.ArtifactsDirectory)/**/*.zip
+                  runtimeStack: 'PYTHON|3.11'
+                  deploymentMethod: 'zipDeploy'
+  - ${{ if or(startsWith(variables['Build.SourceBranch'], 'refs/tags/'), eq(parameters.publish, true)) }}:
+      - stage: ProdPublish
+        displayName: Publish to production
+        jobs:
+          - job: FunctionPublish
+            pool:
+              vmImage: ubuntu-latest
+            steps:
+              - task: DownloadBuildArtifacts@0
+                inputs:
+                  buildType: 'current'
+                  downloadType: 'single'
+                  artifactName: 'drop'
+                  downloadPath: '$(System.ArtifactsDirectory)'
+              - task: AzureFunctionApp@2
+                inputs:
+                  azureSubscription: prod_slopestability-owner-perms
+                  appType: functionAppLinux # default is functionApp
+                  appName: slopestability-func-prod
+                  package: $(System.ArtifactsDirectory)/**/*.zip
+                  runtimeStack: 'PYTHON|3.11'
+                  deploymentMethod: 'zipDeploy'
+
