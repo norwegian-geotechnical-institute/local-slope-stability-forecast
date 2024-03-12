@@ -16,12 +16,12 @@ might include secrets. It should not be checked into git. Also, make sure that n
 
 Run
 ```bash
-poetry run python .\API_trial_LSTM_RF.py
+poetry run python .\fos_forecast.py
 ```
 
 Optionally, specify the time as a command line argument
 ```bash
-poetry run python .\API_trial_LSTM_RF.py --timestamp '2023-12-15T00:00:00+01'
+poetry run python .\fos_forecast.py --timestamp '2023-12-15T00:00:00+01'
 ```
 
 
@@ -39,7 +39,7 @@ docker run -it tmpslopes bash
 ```
 Inside image, run script
 ```
-python API_trial_LSTM_RF.py
+python fos_forecast.py
 ```
 Note that this container does not have access to blob storage or the P drive. It uses
 local temporary input files downloaded from blob storage in a previous local run.
