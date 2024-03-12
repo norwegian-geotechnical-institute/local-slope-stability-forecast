@@ -16,7 +16,7 @@ COPY --from=requirements-stage /requirements.txt /
 RUN pip install -r requirements.txt --no-deps
 
 # Copy script to run
-COPY API_trial_LSTM_RF.py /
+COPY fos_forecast.py /
 COPY .env /
 COPY tmp_models /models
 COPY tmp_params /params

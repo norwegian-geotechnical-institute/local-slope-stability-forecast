@@ -1,7 +1,7 @@
 import logging
 import azure.functions as func
 from datetime import datetime, timezone
-from API_trial_LSTM_RF import run
+from fos_forecast import run
 
 app = func.FunctionApp()
 
