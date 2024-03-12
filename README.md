@@ -50,3 +50,4 @@ Get the function url and _master key from the Azure portal "App Keys" pane for t
 curl -kv -XPOST "<function_url>/admin/functions/TimedTrigger" -H "x-functions-key: <master_key>" -H "Content-Type: application/json" -d '{"input": ""}'
 ```
 A 202 response denotes a successful request.
+.
