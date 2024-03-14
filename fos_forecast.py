@@ -163,28 +163,31 @@ def add_albedo_values(df):
     
     return df
     
-def LSTM_predictions(result_df,scaler1,scaler2,loaded_model):
-    
+def VWC_RF_predictions(merged_df,loaded_model):
+    #print(merged_df)
+   
     # Define input and output variables
-    X_forecast = result_df[['AirTemperature', 'Precipitation', 'month','Precipitation forecast Cum_2', 'Precipitation forecast Cum_3', 'solar_radiation','LAI','RelativeHumidity']]
+    X_forecast = merged_df[[ 'Precipitation','AirTemperature','Wind_speed', 'LAI', 'solar_radiation','RelativeHumidity','Snow_depth','albedo']]
+    # Interpolate NaN values using linear interpolation
+    X_forecast = X_forecast.interpolate(method='linear', limit_direction='both')
 
-    X_forecast=scaler1.transform(X_forecast)
-
-    # Reshape the input data for LSTM
-    X_forecast = X_forecast.reshape((X_forecast.shape[0], X_forecast.shape[1], 1))
-    # Convert data to float32
-    X_forecast = X_forecast.astype(np.float32)
-    #loaded_model = joblib.load('LSTM_VWC_target.pkl')
-    # loaded_model = joblib.load(r"P:\2023\00\20230095\Calculations\ML LPi\Minu\LSTM_VWC_target.pkl")
-    
+    # fill remaining NaN values with the last available value:
+    X_forecast.fillna(method='ffill', inplace=True)
+    # Rename columns in X_forecast
+    X_forecast = X_forecast.rename(columns={
+        'Precipitation':'sum(precipitation_amount P1D)_value',
+        'AirTemperature': 'mean(air_temperature P1D)_value',
+        'Wind_speed': 'mean(wind_speed P1D)_value',
+        'RelativeHumidity': 'relative_humidity',
+        'Snow_depth': 'snow_depth'
+         })
+    #print(X_forecast)
 
     # Make forecasts for Vol moist content and pore pressure
     y_forecasts = loaded_model.predict(X_forecast)
 
-    # Inverse transform the predictions to get original scale
-    y_forecasts_original_scale = scaler2.inverse_transform(y_forecasts)
-    #print(y_forecasts_original_scale)
-    return y_forecasts_original_scale
+        #print(y_forecasts_original_scale)
+    return y_forecasts
 # In[4]:
 
 def Pastas_predictions(merged_df,forecast_df_mean_per_day,specified_duration):
@@ -446,82 +449,7 @@ def Pastas_predictions(merged_df,forecast_df_mean_per_day,specified_duration):
         forecast_df_mean_per_day = pd.merge(forecast_df_mean_per_day, pd.DataFrame({f"{series_name}": y_predicted}), left_on='date', right_index=True, how='left')
         #print(forecast_df_mean_per_day)
     return forecast_df_mean_per_day
-# In[5]:
-def ARIMA_predictions(merged_df,specified_duration):
-    #print(merged_df)
-    columns_to_predict = ['DL1_WC1', 'DL1_WC2', 'DL1_WC3', 'DL1_WC4', 'DL1_WC5', 'DL1_WC6', 'PZ01_D']
-    predicted_results_df = pd.DataFrame()
-    days=specified_duration/24
-    merged_df['date'] = merged_df['timestamp'].dt.date
-    # Iterate over each column
-    for column in columns_to_predict:
-        # Extract the time series for the column
-        time_series = pd.to_numeric(merged_df[column], errors='coerce')
-        time_series.index = pd.to_datetime(merged_df['date'], utc=True)
 
-        # Calculate the index for splitting into training and testing
-        split_index = int(len(time_series) * 0.9)
-
-        # Split the data into calibration and test sets
-        train_data = time_series.head(split_index)
-        test_data = time_series[split_index:]
-        #print(test_data)
-        
-        #print(len(test_data))
-        
-        forecast_start_date = train_data.index[-1] + pd.Timedelta(days=1)
-        forecast_end_date = train_data.index[-1] + pd.DateOffset(days=len(test_data)+(specified_duration/24))
-        # print(test_data.index[-1])
-        # print("forecast_start_date:",forecast_start_date)
-        # print("forecast_end_date:",forecast_end_date)
-        # Calculate the difference in hours
-        days_difference = (forecast_end_date - forecast_start_date).total_seconds() / (3600*24)
-
-        #print(f"Difference in days: {days_difference}")
-        
-        # Generate hourly index for the forecast period
-        forecast_index = pd.date_range(start=forecast_start_date, end=forecast_end_date, freq='D')
-        
-        # Find the optimal order for ARIMA
-        order = find_arima_order(time_series)
-        # Fit ARIMA model on the extended time series
-        model = ARIMA(time_series, order=order)
-        fit_model = model.fit()
-
-        start_index = len(train_data)
-        end_index = len(train_data) + len(test_data)  - 1
-        difference_index=end_index-start_index+(specified_duration/24)
-        # print(f"Start Index Timestamp: {merged_df.index[start_index]}")
-        # print(f"End Index Timestamp: {merged_df.index[end_index]}")
-        # print("difference_index:",difference_index)
-
-        predictions = pd.Series(fit_model.predict(start=forecast_start_date, end=forecast_end_date, typ='levels'))
-        
-        # Create a DataFrame with the forecast results
-        forecast_df = pd.DataFrame({'Predicted': predictions, 'Forecast_Index': forecast_index})
-        #print(forecast_df)
-
-        # Set 'Forecast_Index' column as the index
-        forecast_df.set_index('Forecast_Index', inplace=True)
-
-        # Add a new column 'Actual' to forecast_df with NaN values where test_data is missing
-        forecast_df['Actual'] = test_data.reindex(forecast_df.index).values
-        if column=='DL1_WC1':
-            predicted_results_df['VWC_0.1m'] = forecast_df['Predicted'].tail(3)
-        elif column=='DL1_WC2':
-            predicted_results_df['VWC_0.5m'] = forecast_df['Predicted'].tail(3)
-        elif column=='DL1_WC3':
-            predicted_results_df['VWC_1.0m'] = forecast_df['Predicted'].tail(3)
-        elif column=='DL1_WC4':
-            predicted_results_df['VWC_2.0m'] = forecast_df['Predicted'].tail(3)
-        elif column=='DL1_WC5':
-            predicted_results_df['VWC_4.0m'] = forecast_df['Predicted'].tail(3)
-        elif column=='DL1_WC6':
-            predicted_results_df['VWC_6.0m'] = forecast_df['Predicted'].tail(3)
-        elif column=='PZ01_D':
-            predicted_results_df['PP_6.0m'] = forecast_df['Predicted'].tail(3)
-
-    return predicted_results_df
 # In[6]:
 
 def FoS_Predictions(final_result,Features_FoS,blob_client_loader):
@@ -658,9 +586,7 @@ def run(current_time: Optional[datetime]):
     n = int(os.environ["DAYS_FOR_CUMULATIVE_RAINFALL"]) #number of days for cumulative rainfall
 
     specified_duration = int(os.environ["HOURS_FOR_FORECASTS"]) #hours for forecasts
-    model_name=os.environ["MODEL_NAME"] #choose LSTM, Pastas OR ARIMA
-    #model_name_FoS=os.environ["MODEL_NAME_FOS"] #choose RF OR PR
-    #model_name_FoS='PR'
+    model_name=os.environ["MODEL_NAME"] #choose RF or Pastas 
     Features_FoS=int(os.environ["FEATURES_FOS"])#Choose 10 OR 9
 
 
@@ -978,16 +904,6 @@ def run(current_time: Optional[datetime]):
     #print(merged_df.shape)
 
 
-    # In[21]:
-
-
-    # Create cumulative precipitation columns
-    for i in range(2, n + 1):
-        col_name = f'Precipitation Cum_{i}'
-        merged_df[col_name] = merged_df['sum(precipitation_amount P1D)_value'].shift(1).rolling(i).sum()
-    # Drop NaN rows resulting from the shifting and rolling
-    #merged_df = merged_df.dropna()
-    #print(merged_df)
 
 
     # In[22]:
@@ -1312,8 +1228,6 @@ def run(current_time: Optional[datetime]):
         'mean(air_temperature P1D)_value': 'AirTemperature',
         'sum(precipitation_amount P1D)_value': 'Precipitation',
         'month':'month',
-        'Precipitation Cum_2': 'Precipitation forecast Cum_2',
-        'Precipitation Cum_3': 'Precipitation forecast Cum_3',
         'solar_radiation': 'solar_radiation',
         'LAI': 'LAI',
         'relative_humidity':'RelativeHumidity',
@@ -1322,7 +1236,6 @@ def run(current_time: Optional[datetime]):
     }
     # Assign columns from merged_df to X with different names
     X = merged_df.rename(columns=column_mapping)[['date', 'AirTemperature', 'Precipitation', 'month',
-                                                   'Precipitation forecast Cum_2', 'Precipitation forecast Cum_3',
                                                    'solar_radiation', 'LAI','RelativeHumidity','Wind_speed','Snow_depth']]
     #print(X)
     y = merged_df[['timestamp','DL1_WC1', 'DL1_WC2', 'DL1_WC3','DL1_WC4', 'DL1_WC5', 'DL1_WC6', 'PZ01_D']]
@@ -1370,20 +1283,11 @@ def run(current_time: Optional[datetime]):
     # Sort by 'mid_time' and reset the index
     result_df = result_df.sort_values(by='mid_time').reset_index(drop=True)
 
-    # Print the resulting dataframe
-    #print(result_df)
-
-
-    # In[29]:
-
-
-    # Create cumulative precipitation columns
-    for i in range(2, n + 1):
-        col_name = f'Precipitation forecast Cum_{i}'
-        result_df[col_name] = result_df['Precipitation'].shift(1).rolling(i).sum()
-
+    
     # Call the function to add albedo values to result_df
     result_df = add_albedo_values(result_df)
+    # Print the resulting dataframe
+    # print(result_df)
 
 
     # In[30]:
@@ -1393,23 +1297,19 @@ def run(current_time: Optional[datetime]):
     
     # In[31]:
 
-    if (model_name=="LSTM"):
-        scaler1 = load_model(os.environ["SCALER_1_PATH"], blob_client_loader)
-        scaler2 = load_model(os.environ["SCALER_2_PATH"], blob_client_loader)
+    if (model_name=="RF"):
         loaded_model = load_model(os.environ["MODEL_PATH"], blob_client_loader)
-        Dataframe_with_predictions =LSTM_predictions(result_df,scaler1,scaler2,loaded_model)
+        Dataframe_with_predictions =VWC_RF_predictions(result_df,loaded_model)
     elif (model_name=="Pastas"):
         #print(result_df)
         #print(merged_df)
         Dataframe_with_predictions =Pastas_predictions(result_df,forecast_df_mean_per_day,specified_duration)
-    elif (model_name=="ARIMA"):
-        Dataframe_with_predictions =ARIMA_predictions(merged_df,specified_duration)
 
 
     # In[33]:
     #print(forecast_df_mean_per_day)
     #print(Dataframe_with_predictions)
-    if (model_name=="LSTM"):
+    if (model_name=="RF"):
         predictions_df = pd.DataFrame(Dataframe_with_predictions, columns=['VWC_0.1m', 'VWC_0.5m', 'VWC_1.0m', 'VWC_2.0m', 'VWC_4.0m', 'VWC_6.0m', 'PP_6.0m'])
         # Add 'mid_time' column from 'result_df' to 'predictions_df' and ignore index
         predictions_df['mid_time'] = result_df['mid_time'].values
