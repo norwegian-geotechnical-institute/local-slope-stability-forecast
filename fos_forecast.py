@@ -1012,7 +1012,7 @@ def run(current_time: Optional[datetime]):
     # Generate values for the fitted curve using the loaded parameters
     merged_df['solar_radiation']  = cyclic_fit(merged_df['day_of_year'], loaded_a, loaded_b, loaded_c, loaded_d)
 
-    # Assuming 'month' column is already created
+    # Use LAI values based on month column
     merged_df['LAI'] = merged_df['month'].apply(lambda x: 1.5 if 4 <= x <= 10 else 0)
     
     # Display the resulting merged dataframe
@@ -1587,7 +1587,7 @@ def run(current_time: Optional[datetime]):
     # import plotly.graph_objects as go
     # import plotly.io as pio
 
-# # for i in range(1, 4):  # Assuming 'Day_1', 'Day_2', 'Day_3' columns
+# # for i in range(1, 4):  # 'Day_1', 'Day_2', 'Day_3' columns
 # #     fig = px.bar_polar(
 # #         transposed_df,
 # #         r=f"Day_{i}",
