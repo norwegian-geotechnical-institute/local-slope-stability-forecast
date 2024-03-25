@@ -331,74 +331,79 @@ def Pastas_predictions(merged_df,forecast_df_mean_per_day,specified_duration):
         'VWC_6.0m': 'vwcdata6',
         'PP_6.0m': 'ppdata1'
     }
-    
+    max_trials=5
     # Iterate over the series names
     for series_name, column in columns_to_series.items():
-        # Create a model object by passing it the observed series
-        ml = ps.Model(globals()[column], name=series_name)
+        trials = 0
+        r2 = 0
+        while trials < max_trials and r2 < 0.8:
+            # Create a model object by passing it the observed series
+            ml = ps.Model(globals()[column], name=series_name)
 
-        # Add the rainfall data as an explanatory variable
-        sm = ps.StressModel(precip, ps.Gamma(), name="rainfall", up=True, settings="prec")  # up= True
-        ml.add_stressmodel(sm)
+            # Add the rainfall data as an explanatory variable
+            sm = ps.StressModel(precip, ps.Gamma(), name="rainfall", up=True, settings="prec")  # up= True
+            ml.add_stressmodel(sm)
 
-        # Add the temperature data as an explanatory variable
-        sm2 = ps.StressModel(temp, ps.Gamma(), up=False, name="temperature", settings='evap')
-        ml.add_stressmodel(sm2)
+            # Add the temperature data as an explanatory variable
+            sm2 = ps.StressModel(temp, ps.Gamma(), up=False, name="temperature", settings='evap')
+            ml.add_stressmodel(sm2)
 
-        # Add the solar data as an explanatory variable
-        sm3 = ps.StressModel(sol, ps.Gamma(), up=False, name="solar_radiation", settings='evap')
-        ml.add_stressmodel(sm3)
+            # Add the solar data as an explanatory variable
+            sm3 = ps.StressModel(sol, ps.Gamma(), up=False, name="solar_radiation", settings='evap')
+            ml.add_stressmodel(sm3)
 
-        # Add the LAI data as an explanatory variable
-        sm5 = ps.StressModel(lai, ps.Gamma(), up=True, name="LAI", settings='prec')
-        ml.add_stressmodel(sm5)
+            # Add the LAI data as an explanatory variable
+            sm5 = ps.StressModel(lai, ps.Gamma(), up=True, name="LAI", settings='prec')
+            ml.add_stressmodel(sm5)
 
-        # Add the relative humidity data as an explanatory variable
-        sm6 = ps.StressModel(hum, ps.Gamma(),up=True, name="relative_humidity", settings='prec')
-        ml.add_stressmodel(sm6)
+            # Add the relative humidity data as an explanatory variable
+            sm6 = ps.StressModel(hum, ps.Gamma(),up=True, name="relative_humidity", settings='prec')
+            ml.add_stressmodel(sm6)
 
-        # Add the wind speed data as an explanatory variable
-        sm7= ps.StressModel(ws, ps.Gamma(),name="Wind_speed", settings='evap')
-        ml.add_stressmodel(sm7)
+            # Add the wind speed data as an explanatory variable
+            sm7= ps.StressModel(ws, ps.Gamma(),name="Wind_speed", settings='evap')
+            ml.add_stressmodel(sm7)
 
-        if( column==f'vwcdata5'):
-            # Add the snow_depth data as an explanatory variable
-            sm8= ps.StressModel(sd, ps.Gamma(), name="Snow_depth", settings='evap')
-            ml.add_stressmodel(sm8)
-        else:
-            # Add the snow_depth data as an explanatory variable
-            sm8= ps.StressModel(sd, ps.Gamma(), name="Snow_depth", settings='prec')
-            ml.add_stressmodel(sm8)
+            if( column==f'vwcdata5'):
+                # Add the snow_depth data as an explanatory variable
+                sm8= ps.StressModel(sd, ps.Gamma(), name="Snow_depth", settings='evap')
+                ml.add_stressmodel(sm8)
+            else:
+                # Add the snow_depth data as an explanatory variable
+                sm8= ps.StressModel(sd, ps.Gamma(), name="Snow_depth", settings='prec')
+                ml.add_stressmodel(sm8)
 
-        # Add the albedo data as an explanatory variable
-        sm9= ps.StressModel(albedo, ps.Gamma(),up=False, name="albedo", settings='evap')
-        ml.add_stressmodel(sm9)
+            # Add the albedo data as an explanatory variable
+            sm9= ps.StressModel(albedo, ps.Gamma(),up=False, name="albedo", settings='evap')
+            ml.add_stressmodel(sm9)
 
-        # Get tmin and tmax from the index of the series
-        tmin = globals()[column].index[0]
-        #tmax_solve = globals()[column].index[int(0.99*len(globals()[column]))]
-        tmax_solve = globals()[column].index[-1]
-        #tmax_plot = globals()[column].index[-1] + pd.Timedelta(days=days)
-        tmax_plot = globals()[column].index[-1] 
-        #print(tmax_solve,tmax_plot)
+            # Get tmin and tmax from the index of the series
+            tmin = globals()[column].index[0]
+            #tmax_solve = globals()[column].index[int(0.99*len(globals()[column]))]
+            tmax_solve = globals()[column].index[-1]
+            #tmax_plot = globals()[column].index[-1] + pd.Timedelta(days=days)
+            tmax_plot = globals()[column].index[-1] 
+            #print(tmax_solve,tmax_plot)
 
-        # Solve the model
-        ml.solve(tmin=tmin, tmax=tmax_solve)
+            # Solve the model
+            ml.solve(tmin=tmin, tmax=tmax_solve)
+                
+            # Plot the results
+            #ml.plot(tmax=tmax_plot)
+            # Get the values used for plotting
             
-        # Plot the results
-        #ml.plot(tmax=tmax_plot)
-        # Get the values used for plotting
-        
-        y_observed = ml.observations()
-        y_predicted = ml.simulate(tmax=tmax_plot)  # predicted values
+            y_observed = ml.observations()
+            y_predicted = ml.simulate(tmax=tmax_plot)  # predicted values
 
-        # Trim y_predicted to match the length of y_observed
-        y_predicted_trimmed = y_predicted[:len(y_observed)]
+            # Trim y_predicted to match the length of y_observed
+            y_predicted_trimmed = y_predicted[:len(y_observed)]
 
-        # Calculate R^2 score
-        r2 = r2_score(y_observed, y_predicted_trimmed)
-        # Calculate RMSE
-        rmse = np.sqrt(mean_squared_error(y_observed, y_predicted_trimmed))
+            # Calculate R^2 score
+            r2 = r2_score(y_observed, y_predicted_trimmed)
+            print('r2', series_name,':',r2)
+            # Calculate RMSE
+            rmse = np.sqrt(mean_squared_error(y_observed, y_predicted_trimmed))
+            trials += 1
 
         # # Print the RMSE value
         # print(f"RMSE_{column}:", rmse)
@@ -412,6 +417,7 @@ def Pastas_predictions(merged_df,forecast_df_mean_per_day,specified_duration):
         # # #print("Predicted Values:", y_predicted)
 
         # from matplotlib import rcParams
+        # import matplotlib.pyplot as plt
         # # Creating a DataFrame for plotting
         # df_plot = pd.DataFrame({'Observed': y_observed, 'Predicted': y_predicted})
         # # Set Arial Bold as the default font for the plot
@@ -594,6 +600,7 @@ def run(current_time: Optional[datetime]):
     df_1a = fetch_from_ngi_live(int(os.environ['NGILIVE_PROJECT_ID']), start_time, end_time, "PZ01", "Poretrykk", secret_client)
     df_1b = fetch_from_ngi_live(int(os.environ['NGILIVE_PROJECT_ID']), start_time, end_time, "DL1", "vwc", secret_client)
     df_1 = pd.merge(df_1a, df_1b, on="timestamp")
+    #print(df_1)
 
     #print(df_1)
     #df_1.head()
@@ -868,14 +875,16 @@ def run(current_time: Optional[datetime]):
     # Merge df5 with df3 based on the 'reference_time' column, and add the columns from df5 to df3
     df3 = pd.merge(df3, df5, on='referenceTime', how='left')
 
-    #print(df3)   
+    # print(df3)
+    # print(df_1)
+    # print(end_time)  
 
 
     # In[18]:
 
 
     # merging
-    merged_df = pd.merge(df_1, df3, left_on='timestamp', right_on='referenceTime', how='inner')
+    merged_df = pd.merge(df_1, df3, left_on='timestamp', right_on='referenceTime', how='outer')
 
     # Drop the redundant 'referenceTime' column if needed
     merged_df = merged_df.drop('referenceTime', axis=1)
@@ -883,6 +892,7 @@ def run(current_time: Optional[datetime]):
     # Display the resulting merged dataframe
     #merged_df.head()
     #print(merged_df.columns)
+    #print(merged_df)
 
 
     # In[19]:
@@ -894,10 +904,10 @@ def run(current_time: Optional[datetime]):
     # In[20]:
 
 
-    # Check for columns with all NaN values
+    # # Check for columns with all NaN values
     columns_with_all_nan = merged_df.columns[merged_df.isna().all()]
 
-    # Drop columns with all NaN values
+    # # Drop columns with all NaN values
     merged_df = merged_df.drop(columns=columns_with_all_nan)
 
     # Print the updated shape
@@ -955,6 +965,10 @@ def run(current_time: Optional[datetime]):
     # Interpolate missing values in all columns
     merged_df = merged_df.interpolate()
     #print(merged_df)
+    # # Save DataFrame to a pickle file
+    # merged_df.to_pickle("merged_df.pkl")
+    # # Read DataFrame from the pickle file
+    # merged_df = pd.read_pickle("merged_df.pkl")    
 
 
     
@@ -1288,6 +1302,9 @@ def run(current_time: Optional[datetime]):
     result_df = add_albedo_values(result_df)
     # Print the resulting dataframe
     # print(result_df)
+    # Save DataFrame to a pickle file
+    #result_df.to_pickle("result_df.pkl")
+ 
 
 
     # In[30]:
@@ -1297,33 +1314,26 @@ def run(current_time: Optional[datetime]):
     
     # In[31]:
 
+    # Read DataFrame from the pickle file
+    #result_df = pd.read_pickle("result_df.pkl")  
+    #print(result_df) 
     if (model_name=="RF"):
         loaded_model = load_model(os.environ["MODEL_PATH"], blob_client_loader)
         Dataframe_with_predictions =VWC_RF_predictions(result_df,loaded_model)
+        predictions_df = pd.DataFrame(Dataframe_with_predictions, columns=['VWC_0.1m', 'VWC_0.5m', 'VWC_1.0m', 'VWC_2.0m', 'VWC_4.0m', 'VWC_6.0m', 'PP_6.0m'])
+        # Add 'mid_time' column from 'result_df' to 'predictions_df' and ignore index
+        predictions_df['mid_time'] = result_df['mid_time'].values
     elif (model_name=="Pastas"):
         #print(result_df)
         #print(merged_df)
         Dataframe_with_predictions =Pastas_predictions(result_df,forecast_df_mean_per_day,specified_duration)
-
-
-    # In[33]:
-    #print(forecast_df_mean_per_day)
-    #print(Dataframe_with_predictions)
-    if (model_name=="RF"):
-        predictions_df = pd.DataFrame(Dataframe_with_predictions, columns=['VWC_0.1m', 'VWC_0.5m', 'VWC_1.0m', 'VWC_2.0m', 'VWC_4.0m', 'VWC_6.0m', 'PP_6.0m'])
-        # Add 'mid_time' column from 'result_df' to 'predictions_df' and ignore index
-        predictions_df['mid_time'] = result_df['mid_time'].values
-    elif (model_name=="Pastas"): 
         Dataframe_with_predictions.dropna(subset=['VWC_0.1m', 'VWC_0.5m', 'VWC_1.0m', 'VWC_2.0m', 'VWC_4.0m', 'VWC_6.0m', 'PP_6.0m'], inplace=True)
         predictions_df = pd.DataFrame(Dataframe_with_predictions, columns=['mid_time','VWC_0.1m', 'VWC_0.5m', 'VWC_1.0m', 'VWC_2.0m', 'VWC_4.0m', 'VWC_6.0m', 'PP_6.0m'])
         # Create a mapping dictionary with 'mid_time' as key and corresponding 'mid_time' value
         mid_time_to_mid_time = dict(zip(result_df['mid_time'], result_df['mid_time']))
-
         # Replace the 'mid_time' column in 'predictions_df' with the corresponding values
         predictions_df['mid_time'] = predictions_df['mid_time'].map(mid_time_to_mid_time)
-    elif (model_name=="ARIMA"):
-        predictions_df = pd.DataFrame(Dataframe_with_predictions, columns=['Forecast_Index','VWC_0.1m', 'VWC_0.5m', 'VWC_1.0m', 'VWC_2.0m', 'VWC_4.0m', 'VWC_6.0m', 'PP_6.0m'])
-        predictions_df['mid_time'] = result_df['mid_time'].values
+
 
        
 
