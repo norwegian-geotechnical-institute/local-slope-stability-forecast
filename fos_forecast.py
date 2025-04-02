@@ -99,8 +99,8 @@ def run(current_time: Optional[datetime]):
     # Define endpoint and parameters
     endpoint = 'https://frost.met.no/observations/v0.jsonld'
     parameters = {
-        'sources': 'SN11450',
-        'elements': 'mean(air_temperature P1D),sum(precipitation_amount P1D),mean(wind_speed P1D),mean(solar_irradiance PT1H),max(max(wind_speed PT1H) P1D),max(relative_humidity P1D),dew_point_temperature',
+        'sources': 'SN4780', # Error response from Minnensund station, and therefore using Lufthavn station
+        'elements': 'mean(air_temperature P1D),sum(precipitation_amount P1D)',
         'referencetime': frost_reference_time,
     }
     # Issue an HTTP GET request
@@ -120,10 +120,10 @@ def run(current_time: Optional[datetime]):
     if r2.status_code == 200:
         data = json['data']
         #print('Data retrieved from frost.met.no!')
-    #else:
-        #print('Error! Returned status code %s' % r2.status_code)
-        #print('Message: %s' % json['error']['message'])
-        #print('Reason: %s' % json['error']['reason'])
+    else:
+        print('Error! Returned status code %s' % r2.status_code)
+        print('Message: %s' % json['error']['message'])
+        print('Reason: %s' % json['error']['reason'])
 
 
     # In[9]:
